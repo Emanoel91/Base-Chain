@@ -11,7 +11,24 @@ from common import (
 )
 from llama import get_chain_tvl, get_all_chains, get_protocols
 
-st.set_page_config(page_title="Base Chain - TVL", page_icon="🔵", layout="wide")
+# --- Page Config: Tab Title & Icon ---
+st.set_page_config(
+    page_title="Base Chain — TVL",
+    page_icon="https://images.cryptorank.io/coins/150x150.base1752857325751.png",
+    layout="wide"
+)
+
+# --- Title with Logo ---
+st.markdown(
+    """
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <img src="https://images.cryptorank.io/coins/150x150.base1752857325751.png" alt="Base" style="width:60px; height:60px;">
+        <h1 style="margin: 0;">Base Chain — TVL</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 
 errors = []
 
