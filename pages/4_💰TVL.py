@@ -37,17 +37,7 @@ def sc(fn, *args, **kwargs):
     return safe_call(errors, fn, *args, **kwargs)
 
 
-sidebar_controls()
-page_header(
-    "",
-    "Total Value Locked on <b>Base</b>: history, comparison with other chains, categories, protocols, "
-    "concentration, top movers and the full protocol list. "
-    "Data comes from DefiLlama's free public API. See the <b>Sources</b> section at the bottom."
-)
 
-DOWN_COLOR = "#ef4444"
-# Centered legend, placed on the title row so it does not sit right under the title
-LEGEND_TOP_CENTER = dict(orientation="h", x=0.5, xanchor="center", y=1.08, yanchor="bottom")
 
 # ============================================================
 # --- Load data ---
