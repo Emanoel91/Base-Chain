@@ -10,7 +10,49 @@ from common import (
     fmt_usd, fmt_pct, pct_change,
 )
 from llama import get_chain_tvl, get_all_chains, get_protocols
+# --- Sidebar Footer Slightly Left-Aligned ---
+st.sidebar.markdown(
+    """
+    <style>
+    .sidebar-footer {
+        position: fixed;
+        bottom: 20px;
+        width: 250px;
+        font-size: 13px;
+        color: gray;
+        margin-left: 5px; /* Move slightly left */
+        text-align: left;  
+    }
+    .sidebar-footer img {
+        width: 16px;
+        height: 16px;
+        vertical-align: middle;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    .sidebar-footer a {
+        color: gray;
+        text-decoration: none;
+    }
+    </style>
 
+    <div class="sidebar-footer">
+        <div>
+            <a href="https://x.com/base" target="_blank">
+                <img src="https://pbs.twimg.com/profile_images/2060695832840556549/R0s33fMN_400x400.jpg" alt="Base Logo">
+                Powered by Base
+            </a>
+        </div>
+        <div style="margin-top: 5px;">
+            <a href="https://x.com/0xeman_raz" target="_blank">
+                <img src="https://pbs.twimg.com/profile_images/2060406047391559681/sA9zPNKM_400x400.jpg" alt="Eman Raz">
+                Built by Eman Raz
+            </a>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 # --- Page Config: Tab Title & Icon ---
 st.set_page_config(
     page_title="Base Chain — TVL",
@@ -51,50 +93,6 @@ st.markdown(
     ">
         🎁 <b>Support / Tips:</b><br>
         <code>0x621bd661e3d57da1c8237209824827f1027abf62</code>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- Sidebar Footer Slightly Left-Aligned ---
-st.sidebar.markdown(
-    """
-    <style>
-    .sidebar-footer {
-        position: fixed;
-        bottom: 20px;
-        width: 250px;
-        font-size: 13px;
-        color: gray;
-        margin-left: 5px; /* Move slightly left */
-        text-align: left;  
-    }
-    .sidebar-footer img {
-        width: 16px;
-        height: 16px;
-        vertical-align: middle;
-        border-radius: 50%;
-        margin-right: 5px;
-    }
-    .sidebar-footer a {
-        color: gray;
-        text-decoration: none;
-    }
-    </style>
-
-    <div class="sidebar-footer">
-        <div>
-            <a href="https://x.com/base" target="_blank">
-                <img src="https://pbs.twimg.com/profile_images/2060695832840556549/R0s33fMN_400x400.jpg" alt="Base Logo">
-                Powered by Base
-            </a>
-        </div>
-        <div style="margin-top: 5px;">
-            <a href="https://x.com/0xeman_raz" target="_blank">
-                <img src="https://pbs.twimg.com/profile_images/2060406047391559681/sA9zPNKM_400x400.jpg" alt="Eman Raz">
-                Built by Eman Raz
-            </a>
-        </div>
     </div>
     """,
     unsafe_allow_html=True
