@@ -10,6 +10,10 @@ from common import (
     fmt_usd, fmt_pct, pct_change,
 )
 from llama import get_chain_tvl, get_all_chains, get_protocols
+
+DOWN_COLOR = "#ef4444"
+LEGEND_TOP_CENTER = dict(orientation="h", x=0.5, xanchor="center", y=1.08, yanchor="bottom")
+
 # --- Sidebar Footer Slightly Left-Aligned ---
 st.sidebar.markdown(
     """
