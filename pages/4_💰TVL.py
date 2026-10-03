@@ -39,7 +39,7 @@ def sc(fn, *args, **kwargs):
 
 sidebar_controls()
 page_header(
-    
+    "",
     "Total Value Locked on <b>Base</b>: history, comparison with other chains, categories, protocols, "
     "concentration, top movers and the full protocol list. "
     "Data comes from DefiLlama's free public API. See the <b>Sources</b> section at the bottom."
