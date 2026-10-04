@@ -106,14 +106,7 @@ def sc(fn, *args, **kwargs):
 
 
 sidebar_controls()
-page_header(
-    "Base Chain — Transactions & Activity",
-    "On-chain activity on <b>Base</b>, from the first available day to the latest complete day: "
-    "transactions, active addresses and fees. "
-    "All data comes from the <b>growthepie</b> public API. "
-    "Use the filters below to change the time frame and range. "
-    "See the <b>Sources</b> section at the bottom of the page."
-)
+
 
 GTP_API = "https://api.growthepie.com/v1"
 CHAIN = "base"
