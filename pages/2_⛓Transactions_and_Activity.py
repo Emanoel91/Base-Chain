@@ -104,9 +104,7 @@ errors = []
 def sc(fn, *args, **kwargs):
     return safe_call(errors, fn, *args, **kwargs)
 
-
-sidebar_controls()
-
+## -- sidebar_controls()
 
 GTP_API = "https://api.growthepie.com/v1"
 CHAIN = "base"
