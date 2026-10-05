@@ -97,7 +97,7 @@ st.sidebar.markdown(
 
     <div class="sidebar-footer">
         <div>
-            <a href="https://x.com/inkonchain" target="_blank">
+            <a href="https://x.com/base" target="_blank">
                 <img src="https://images.cryptorank.io/coins/150x150.base1752857325751.png" alt="Base Logo">
                 Powered by Base
             </a>
