@@ -98,8 +98,8 @@ st.sidebar.markdown(
     <div class="sidebar-footer">
         <div>
             <a href="https://x.com/inkonchain" target="_blank">
-                <img src="https://img.cryptorank.io/coins/ink1729850762329.png" alt="Ink Logo">
-                Powered by Ink
+                <img src="https://images.cryptorank.io/coins/150x150.base1752857325751.png" alt="Base Logo">
+                Powered by Base
             </a>
         </div>
         <div style="margin-top: 5px;">
