@@ -124,6 +124,19 @@ GROUPS = [
     ("Addresses Analysis", ["daa", "txsPerActive"]),
 ]
 
+# Blockworks Studio (Base activity by category / outcome / TPS)
+BW_URL = "https://app.blockworks.com/api/blockworks-studio/dashboard/62/visualization/15034/execution"
+BW_OUTCOMES = ["successful", "reverted"]
+BW_LABELS = {
+    "unknown": "Unknown", "spot_dex": "Spot DEX", "asset_transfer": "Asset Transfer",
+    "liquidity_provision": "Liquidity Provision", "trading": "Trading",
+    "asset_approval": "Asset Approval", "depin": "DePIN", "other": "Other",
+    "successful": "Successful", "reverted": "Reverted",
+}
+BW_PALETTE = ["#0052FF", "#00C2A8", "#F5A623", "#8B5CF6", "#EF4444", "#10B981", "#EC4899", "#94A3B8"]
+BW_OUTCOME_COLORS = {"successful": "#10B981", "reverted": "#EF4444"}
+SECONDS_PER_DAY = 86400
+
 
 # ============================================================
 # --- Data fetchers ---
@@ -185,6 +198,61 @@ def col_series(raw, candidates):
     return None
 
 
+def _find_rows(o):
+    """Locate the list of daily row dicts (each containing a 'dt' key) anywhere in the JSON."""
+    if isinstance(o, list):
+        if o and isinstance(o[0], dict) and "dt" in o[0]:
+            return o
+        for v in o:
+            r = _find_rows(v)
+            if r is not None:
+                return r
+    elif isinstance(o, dict):
+        for v in o.values():
+            r = _find_rows(v)
+            if r is not None:
+                return r
+    return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_bw_activity() -> pd.DataFrame:
+    """Daily Base activity from Blockworks Studio -> DataFrame[date, categories, successful, reverted, total, *_tps]."""
+    headers = {"User-Agent": "Mozilla/5.0 (base-dashboard/1.0)", "Accept": "application/json"}
+    r = requests.get(BW_URL, headers=headers, timeout=60)
+    if r.status_code in (400, 404, 405):          # some Studio endpoints only accept POST
+        r = requests.post(BW_URL, headers=headers, json={}, timeout=60)
+    r.raise_for_status()
+    rows = _find_rows(r.json())
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    df["date"] = pd.to_datetime(df["dt"]).dt.normalize()
+    df = df.drop(columns=["dt"])
+    for c in df.columns:
+        if c != "date":
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df[df["date"].dt.date < datetime.now(timezone.utc).date()]   # drop today's partial day
+    return df.drop_duplicates("date").sort_values("date").reset_index(drop=True)
+
+
+def prepare_bw(raw):
+    """-> (df, category_columns, outcome_columns) or None.
+    df keeps counts + adds `tps_<col>` (= daily count / 86,400) for every category and the total."""
+    if raw is None or raw.empty:
+        return None
+    skip = {"date", "total"} | set(BW_OUTCOMES)
+    cats = [c for c in raw.columns if c not in skip and not c.endswith("_tps")]
+    outs = [c for c in BW_OUTCOMES if c in raw.columns]
+    if not cats and not outs:
+        return None
+    df = raw[["date"] + cats + outs].copy()
+    df["total"] = raw["total"] if "total" in raw.columns else df[cats or outs].sum(axis=1)
+    for c in cats + ["total"]:
+        df[f"tps_{c}"] = df[c] / SECONDS_PER_DAY
+    return df, cats, outs
+
+
 # ============================================================
 # --- Filters (each one a separate dropdown) ---
 # ============================================================
@@ -209,6 +277,7 @@ with st.spinner("Loading Base data from growthepie..."):
     tx_raw = sc(get_metric_raw, "txcount", default=None, label="growthepie txcount")
     daa_raw = sc(get_metric_raw, "daa", default=None, label="growthepie daa")
     fees_raw = sc(get_metric_raw, "fees", default=None, label="growthepie fees")
+    bw_raw = sc(get_bw_activity, default=None, label="Blockworks activity")
 
 tx = col_series(tx_raw, ["value"])
 daa = col_series(daa_raw, ["value"])
@@ -230,6 +299,12 @@ if tx is not None and daa is not None:
         series["txsPerActive"] = (
             pd.DataFrame({"date": m["date"], "value": m["value_tx"] / m["value_act"]}),
             CHARTS["txsPerActive"]["units"])
+
+bw_prep = prepare_bw(bw_raw)
+if bw_prep is not None:
+    bw, bw_cats, bw_outs = bw_prep
+else:
+    bw, bw_cats, bw_outs = None, [], []
 
 if not series:
     st.warning("growthepie data could not be loaded right now. See the data warnings at the bottom.")
@@ -480,13 +555,116 @@ def weekday_fee_chart():
     return style_layout(fig, "Average Transaction Fees by Day of Week (Selected Range)", "USD per transaction")
 
 
+def aggregate_multi(df: pd.DataFrame) -> pd.DataFrame:
+    """Weekly / monthly buckets for a multi-column frame: counts are summed, `tps_*` columns averaged.
+    The incomplete last bucket is dropped (same rule as `aggregate`)."""
+    if gran == "Daily" or df.empty:
+        return df
+    s = df.set_index("date")
+    how = {c: ("mean" if c.startswith("tps_") else "sum") for c in s.columns}
+    if gran == "Weekly":
+        rs = s.resample("W-MON", label="left", closed="left")
+        span_end = lambda d: d + pd.Timedelta(days=6)
+    else:
+        rs = s.resample("MS")
+        span_end = lambda d: d + pd.offsets.MonthEnd(0)
+    out = rs.agg(how).dropna(how="all").reset_index()
+    out = out[out["date"].map(span_end) <= df["date"].max()]
+    return out.reset_index(drop=True)
+
+
+def bw_label(c):
+    return BW_LABELS.get(c, c.replace("_", " ").title())
+
+
+def bw_color(i):
+    return BW_PALETTE[i % len(BW_PALETTE)]
+
+
+def bw_title(base):
+    return base if gran == "Daily" else f"{base} — {gran}"
+
+
+def bw_stacked_chart(cols, title, colors):
+    fig = go.Figure()
+    for c, col in zip(cols, colors):
+        fig.add_trace(go.Bar(x=bw_view["date"], y=bw_view[c], name=bw_label(c), marker_color=col))
+    fig.update_layout(barmode="stack")
+    return style_layout(fig, bw_title(title), "transactions", legend=True)
+
+
+def bw_donut_chart(cols, title, colors):
+    vals = [bw_view[c].sum() for c in cols]
+    fig = go.Figure(go.Pie(
+        labels=[bw_label(c) for c in cols], values=vals, hole=0.55, sort=False,
+        marker=dict(colors=colors), textinfo="percent", textposition="outside",
+        hovertemplate="%{label}<br>%{value:,.0f} transactions<br>%{percent}<extra></extra>",
+    ))
+    fig.add_annotation(text=f"<b>{fmt_num(sum(vals))}</b><br>transactions", x=0.5, y=0.5,
+                       showarrow=False, font=dict(size=14))
+    return style_layout(fig, f"{title} (Selected Range)", None, legend=True)
+
+
+def bw_total_tps_chart():
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=bw_view["date"], y=bw_view["tps_total"], mode="lines",
+                             line=dict(color=ACCENT, width=2), name="Total TPS"))
+    if show_ma and len(bw_view) > MA_WINDOW:
+        fig.add_trace(go.Scatter(x=bw_view["date"], y=bw_view["tps_total"].rolling(MA_WINDOW).mean(), mode="lines",
+                                 line=dict(color=MA_COLOR, width=2), name=f"{MA_WINDOW}-period MA"))
+    return style_layout(fig, bw_title("Total TPS Over Time"), "TPS", legend=bool(show_ma))
+
+
+def bw_category_tps_chart():
+    fig = go.Figure()
+    for i, c in enumerate(bw_cats):
+        fig.add_trace(go.Scatter(x=bw_view["date"], y=bw_view[f"tps_{c}"], mode="lines",
+                                 line=dict(color=bw_color(i), width=2), name=bw_label(c)))
+    return style_layout(fig, bw_title("TPS by Category Over Time"), "TPS", legend=True)
+
+
+def render_bw_section():
+    """Three extra rows: stacked bars, donuts, TPS lines (all driven by the Time Frame + Range filters)."""
+    if bw is None or bw_view.empty:
+        st.info("Blockworks activity data is not available right now (see data warnings at the bottom).")
+        return
+    cat_colors = [bw_color(i) for i in range(len(bw_cats))]
+    out_colors = [BW_OUTCOME_COLORS.get(c, "#94A3B8") for c in bw_outs]
+
+    # Row A — stacked bars
+    a1, a2 = st.columns(2)
+    with a1:
+        show_chart(bw_stacked_chart(bw_cats, "Transaction Count by Category", cat_colors))
+    with a2:
+        if bw_outs:
+            show_chart(bw_stacked_chart(bw_outs, "Transaction Count by Outcome", out_colors))
+
+    # Row B — donuts
+    b1, b2 = st.columns(2)
+    with b1:
+        show_chart(bw_donut_chart(bw_cats, "Total Transaction Count by Category", cat_colors))
+    with b2:
+        if bw_outs:
+            show_chart(bw_donut_chart(bw_outs, "Total Transaction Count by Outcome", out_colors))
+
+    # Row C — TPS lines
+    c1, c2 = st.columns(2)
+    with c1:
+        show_chart(bw_total_tps_chart())
+    with c2:
+        show_chart(bw_category_tps_chart())
+
+
+bw_view = in_range(aggregate_multi(bw)) if bw is not None else pd.DataFrame()
+
+
 # ============================================================
 # --- Chart groups ---
 # ============================================================
 for header, ids in GROUPS:
     present = [i for i in ids if i in series]
     missing = [CHARTS[i]["title"] for i in ids if i not in series]
-    if not present:
+    if not present and not (header == "Transactions Analysis" and bw is not None):
         continue
     st.subheader(header)
     for i in range(0, len(present), 2):
@@ -494,6 +672,8 @@ for header, ids in GROUPS:
         for col, sid in zip(cols, present[i:i + 2]):
             with col:
                 show_chart(metric_chart(sid))
+    if header == "Transactions Analysis":
+        render_bw_section()
     if header == "Transactions Analysis" and "txcount" in series:
         wc1, wc2 = st.columns(2)
         with wc1:
@@ -519,6 +699,7 @@ st.markdown(
 |---|---|---|
 | KPIs and charts | Transactions, active addresses | [growthepie](https://www.growthepie.com/chains/base) · `https://api.growthepie.com/v1/metrics/chains/base/txcount.json`, `.../daa.json` |
 | Fee KPIs and fee-by-weekday chart | Fees paid by users (USD and ETH) | growthepie · `https://api.growthepie.com/v1/metrics/chains/base/fees.json` |
+| Category / outcome / TPS charts | Daily transactions by category (Spot DEX, Asset Transfer, ...), successful vs reverted, TPS | [Blockworks Studio](https://app.blockworks.com) · `https://app.blockworks.com/api/blockworks-studio/dashboard/62/visualization/15034/execution` |
 | Derived metrics | Cumulative transactions, transactions per active address, average fee per transaction, weekday patterns, weekly/monthly aggregation, YTD and period-over-period changes | Calculated in this app from the daily growthepie series above |
 """
 )
@@ -527,7 +708,9 @@ st.caption(
     "'Active Addresses' is averaged per day when aggregated. 'Q' range = current calendar quarter to date. "
     "Period changes compare against the equal-length preceding period (YTD: same dates of the previous year). "
     "'Total ... since first data day' sums the daily values available in the API. "
-    "Average fee per transaction = fees paid / transactions for the day."
+    "Average fee per transaction = fees paid / transactions for the day. "
+    "TPS charts are computed as transactions / 86,400 s per day (more precise than the rounded TPS fields of the API); "
+    "Weekly/Monthly TPS is the average of the daily values. Donut charts sum the selected range."
 )
 
 if errors:
