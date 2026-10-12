@@ -585,12 +585,22 @@ def bw_title(base):
     return base if gran == "Daily" else f"{base} — {gran}"
 
 
-def bw_stacked_chart(cols, title, colors):
+def bw_stacked_chart(cols, title, colors, legend_cols=None):
     fig = go.Figure()
     for c, col in zip(cols, colors):
         fig.add_trace(go.Bar(x=bw_view["date"], y=bw_view[c], name=bw_label(c), marker_color=col))
     fig.update_layout(barmode="stack")
-    return style_layout(fig, bw_title(title), "transactions", legend=True)
+    style_layout(fig, bw_title(title), "transactions", legend=True)
+    if legend_cols:
+        # Fixed-width legend entries -> items line up in `legend_cols` aligned columns
+        rows = -(-len(cols) // legend_cols)                      # ceil
+        fig.update_layout(
+            legend=dict(orientation="h", x=0.5, xanchor="center", y=1.04, yanchor="bottom",
+                        entrywidthmode="fraction", entrywidth=round(0.97 / legend_cols, 3)),
+            height=340 + 24 * rows,
+            margin=dict(l=10, r=10, t=70 + 24 * rows, b=10),
+        )
+    return fig
 
 
 def bw_donut_chart(cols, title, colors):
@@ -634,7 +644,7 @@ def render_bw_section():
     # Row A — stacked bars
     a1, a2 = st.columns(2)
     with a1:
-        show_chart(bw_stacked_chart(bw_cats, "Transaction Count by Category", cat_colors))
+        show_chart(bw_stacked_chart(bw_cats, "Transaction Count by Category", cat_colors, legend_cols=3))
     with a2:
         if bw_outs:
             show_chart(bw_stacked_chart(bw_outs, "Transaction Count by Outcome", out_colors))
