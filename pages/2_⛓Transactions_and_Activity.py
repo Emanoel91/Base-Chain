@@ -585,7 +585,7 @@ def bw_title(base):
     return base if gran == "Daily" else f"{base} — {gran}"
 
 
-def bw_stacked_chart(cols, title, colors, legend_cols=None):
+def bw_stacked_chart(cols, title, colors, legend_cols=None, height=None, top=None):
     fig = go.Figure()
     for c, col in zip(cols, colors):
         fig.add_trace(go.Bar(x=bw_view["date"], y=bw_view[c], name=bw_label(c), marker_color=col))
@@ -600,6 +600,8 @@ def bw_stacked_chart(cols, title, colors, legend_cols=None):
             height=340 + 24 * rows,
             margin=dict(l=10, r=10, t=70 + 24 * rows, b=10),
         )
+    if height is not None:                                       # force identical size when charts sit side by side
+        fig.update_layout(height=height, margin=dict(l=10, r=10, t=top, b=10))
     return fig
 
 
@@ -641,13 +643,17 @@ def render_bw_section():
     cat_colors = [bw_color(i) for i in range(len(bw_cats))]
     out_colors = [BW_OUTCOME_COLORS.get(c, "#94A3B8") for c in bw_outs]
 
-    # Row A — stacked bars
+    # Row A — stacked bars (both charts share the same height / margins so the plot areas line up)
+    leg_rows = -(-len(bw_cats) // 3)
+    row_h, row_top = 340 + 24 * leg_rows, 70 + 24 * leg_rows
     a1, a2 = st.columns(2)
     with a1:
-        show_chart(bw_stacked_chart(bw_cats, "Transaction Count by Category", cat_colors, legend_cols=3))
+        show_chart(bw_stacked_chart(bw_cats, "Transaction Count by Category", cat_colors,
+                                    legend_cols=3, height=row_h, top=row_top))
     with a2:
         if bw_outs:
-            show_chart(bw_stacked_chart(bw_outs, "Transaction Count by Outcome", out_colors))
+            show_chart(bw_stacked_chart(bw_outs, "Transaction Count by Outcome", out_colors,
+                                        height=row_h, top=row_top))
 
     # Row B — donuts
     b1, b2 = st.columns(2)
